@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HILUZ DJ Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    input[type=range] { cursor: pointer; }
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0; padding: 0;
+      background: #06060d;
+      overflow-x: hidden;
+    }
+
+    /* metallic scan-line texture */
+    #metal-bg {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        repeating-linear-gradient(
+          0deg,
+          transparent 0px, transparent 3px,
+          rgba(255,255,255,0.018) 3px, rgba(255,255,255,0.018) 4px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          transparent 0px, transparent 80px,
+          rgba(255,255,255,0.006) 80px, rgba(255,255,255,0.006) 81px
+        ),
+        radial-gradient(ellipse at 15% 30%, rgba(80,40,180,0.18) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 70%, rgba(40,20,120,0.15) 0%, transparent 55%),
+        radial-gradient(ellipse at 50% 100%, rgba(100,50,200,0.1) 0%, transparent 50%),
+        linear-gradient(160deg, #0b0b18 0%, #0f0f20 30%, #080814 55%, #0e0e1e 80%, #0a0a16 100%);
+    }
+
+    /* sliding chrome shimmer */
+    @keyframes shimmer {
+      0%   { transform: translateX(-300px); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { transform: translateX(110vw); opacity: 0; }
+    }
+    #shimmer1 { animation: shimmer 9s ease-in-out infinite; animation-delay: 0s; }
+    #shimmer2 { animation: shimmer 9s ease-in-out infinite; animation-delay: 4.5s; }
+    .shimmer-bar {
+      position: fixed; top: 0; left: 0; width: 180px; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(200,180,255,0.055), rgba(255,255,255,0.04), transparent);
+      pointer-events: none; z-index: 0;
+    }
+
+    /* sparkle canvas */
+    #sparkle-canvas {
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 0;
+    }
+
+    /* cat photos */
+    .cat-photo {
+      position: fixed;
+      border-radius: 18px;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 0;
+      filter: brightness(0.65) contrast(1.15) saturate(0.9);
+      box-shadow: 0 0 40px rgba(140,80,255,0.25), 0 0 80px rgba(100,50,200,0.1);
+      transition: opacity 1.5s ease;
+    }
+    .cat-photo.loaded { opacity: 0.32; }
+
+    #root { position: relative; z-index: 1; }
+  </style>
+</head>
+<body>
+  <!-- metallic background layers -->
+  <div id="metal-bg"></div>
+  <div id="shimmer1" class="shimmer-bar"></div>
+  <div id="shimmer2" class="shimmer-bar"></div>
+
+  <!-- sparkle canvas -->
+  <canvas id="sparkle-canvas"></canvas>
+
+  <!-- realistic cat photos from cataas.com -->
+  <img class="cat-photo" id="cat1"
+       src="https://cataas.com/cat?width=300&height=300"
+       style="top:5%;left:-30px;width:260px;transform:rotate(-6deg)">
+  <img class="cat-photo" id="cat2"
+       src="https://cataas.com/cat/cute?width=280&height=320"
+       style="top:38%;right:-25px;width:240px;transform:rotate(5deg)">
+  <img class="cat-photo" id="cat3"
+       src="https://cataas.com/cat/funny?width=280&height=280"
+       style="top:68%;left:-20px;width:250px;transform:rotate(-4deg)">
+  <img class="cat-photo" id="cat4"
+       src="https://cataas.com/cat?width=260&height=260"
+       style="bottom:1%;right:-20px;width:230px;transform:rotate(8deg)">
+  <img class="cat-photo" id="cat5"
+       src="https://cataas.com/cat/cute?width=220&height=220"
+       style="top:20%;left:-15px;width:190px;transform:rotate(3deg)">
+
+  <div id="root"></div>
+
+  <script>
+    // fade in cats on load
+    document.querySelectorAll('.cat-photo').forEach(img => {
+      img.addEventListener('load', () => img.classList.add('loaded'));
+      img.addEventListener('error', () => img.style.display = 'none');
+    });
+
+    // sparkle particles
+    (function() {
+      const canvas = document.getElementById('sparkle-canvas');
+      const ctx = canvas.getContext('2d');
+      let W, H, pts = [];
+      function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+      resize();
+      window.addEventListener('resize', resize);
+      for (let i = 0; i < 160; i++) pts.push({
+        x: Math.random() * 3000, y: Math.random() * 3000,
+        r: Math.random() * 1.8 + 0.3,
+        phase: Math.random() * Math.PI * 2,
+        speed: Math.random() * 0.006 + 0.002,
+        hue: 250 + Math.random() * 60
+      });
+      function draw(t) {
+        ctx.clearRect(0, 0, W, H);
+        pts.forEach(p => {
+          const a = (Math.sin(t * p.speed + p.phase) + 1) / 2;
+          if (a < 0.05) return;
+          ctx.globalAlpha = a * 0.75;
+          const grd = ctx.createRadialGradient(p.x % W, p.y % H, 0, p.x % W, p.y % H, p.r * 2.5);
+          grd.addColorStop(0, `hsl(${p.hue},70%,85%)`);
+          grd.addColorStop(1, 'transparent');
+          ctx.fillStyle = grd;
+          ctx.beginPath();
+          ctx.arc(p.x % W, p.y % H, p.r * 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+        requestAnimationFrame(draw);
+      }
+      requestAnimationFrame(draw);
+    })();
+  </script>
+
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+    window._ytReady = new Promise(res => {
+      if (window.YT && window.YT.Player) res();
+      else window.onYouTubeIframeAPIReady = res;
+    });
+  </script>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    function extractVideoId(str) {
+      const m = str.match(/(?:youtube\.com\/(?:watch\?.*?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+      if (m) return m[1];
+      if (/^[A-Za-z0-9_-]{11}$/.test(str.trim())) return str.trim();
+      return null;
+    }
+
+    function extractPlaylistId(str) {
+      const m = str.match(/[?&]list=([A-Za-z0-9_-]+)/);
+      return m ? m[1] : null;
+    }
+
+    function fetchPlaylistVideoIds(playlistId) {
+      return new Promise((resolve) => {
+        const uid = 'pl-' + Date.now();
+        const div = document.createElement('div');
+        div.id = uid;
+        div.style.cssText = 'position:fixed;left:-9999px;bottom:0;width:1px;height:1px;overflow:hidden;';
+        document.body.appendChild(div);
+        let done = false;
+        const finish = (ids) => {
+          if (done) return; done = true;
+          try { pl.destroy(); } catch(_) {}
+          div.remove(); resolve(ids);
+        };
+        const pl = new YT.Player(uid, {
+          height: 1, width: 1,
+          playerVars: { autoplay: 0, controls: 0 },
+          events: {
+            onReady: () => pl.cuePlaylist({ list: playlistId, listType: 'playlist' }),
+            onStateChange: () => {
+              const ids = pl.getPlaylist();
+              if (ids?.length) finish(ids);
+            }
+          }
+        });
+        setTimeout(() => finish([]), 15000);
+      });
+    }
+
+    function fmt(s) {
+      if (!s || isNaN(s) || s < 0) return '0:00';
+      const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+      return `${m}:${String(sec).padStart(2, '0')}`;
+    }
+
+    function App() {
+      const [queue, setQueue]           = useState([]);
+      const [urlInput, setUrlInput]     = useState('');
+      const [masterVol, setMasterVol]   = useState(80);
+      const [cf, setCf]                 = useState(0);
+      const [monitorOn, setMonitorOn]   = useState(false);
+      const [autoCfOn, setAutoCfOn]     = useState(true);
+      const [activeDeck, setActiveDeck] = useState('A');
+      const [deckAVol, setDeckAVol]     = useState(100);
+      const [deckBVol, setDeckBVol]     = useState(100);
+      const [infoA, setInfoA]           = useState({ title: '', time: 0, duration: 0, playing: false });
+      const [infoB, setInfoB]           = useState({ title: '', time: 0, duration: 0, playing: false });
+      const [loadingPlaylist, setLoadingPlaylist] = useState(false);
+      const [selectedQItem, setSelectedQItem] = useState(null);
+      const [dragOverIdx, setDragOverIdx] = useState(null);
+      const dragSrcIdx = useRef(null);
+      const [savedPlaylists, setSavedPlaylists] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('hiluz_playlists') || '[]'); } catch { return []; }
+      });
+      const [showSaved, setShowSaved] = useState(false);
+      const [confirmDelete, setConfirmDelete] = useState(null);
+      const [bpmA, setBpmA] = useState(null);
+      const [bpmB, setBpmB] = useState(null);
+      const [tapFlashA, setTapFlashA] = useState(false);
+      const [tapFlashB, setTapFlashB] = useState(false);
+      const tapsA = useRef([]), tapsB = useRef([]);
+      const tapTimerA = useRef(null), tapTimerB = useRef(null);
+
+      const pA = useRef(null), pB = useRef(null);
+      const rdyA = useRef(false), rdyB = useRef(false);
+      const cfR = useRef(0), activeR = useRef('A'), queueR = useRef([]);
+      const masterR = useRef(80), dAvolR = useRef(100), dBvolR = useRef(100);
+      const monitorR = useRef(false), xfading = useRef(false), autoCFR = useRef(true);
+
+      useEffect(() => { cfR.current = cf; }, [cf]);
+      useEffect(() => { activeR.current = activeDeck; }, [activeDeck]);
+      useEffect(() => { queueR.current = queue; }, [queue]);
+      useEffect(() => { masterR.current = masterVol; }, [masterVol]);
+      useEffect(() => { dAvolR.current = deckAVol; }, [deckAVol]);
+      useEffect(() => { dBvolR.current = deckBVol; }, [deckBVol]);
+      useEffect(() => { monitorR.current = monitorOn; }, [monitorOn]);
+      useEffect(() => { autoCFR.current = autoCfOn; }, [autoCfOn]);
+
+      const applyVols = useCallback((cfOverride) => {
+        const cfv = (cfOverride !== undefined ? cfOverride : cfR.current) / 100;
+        const mv = masterR.current / 100;
+        let vA = dAvolR.current / 100 * mv * (1 - cfv);
+        let vB = dBvolR.current / 100 * mv * cfv;
+        if (monitorR.current) {
+          const mon = 0.28 * mv;
+          if (activeR.current === 'A') vB = Math.max(vB, mon);
+          else vA = Math.max(vA, mon);
+        }
+        if (pA.current && rdyA.current) pA.current.setVolume(Math.round(vA * 100));
+        if (pB.current && rdyB.current) pB.current.setVolume(Math.round(vB * 100));
+      }, []);
+
+      useEffect(() => { applyVols(); }, [cf, masterVol, deckAVol, deckBVol, monitorOn, activeDeck, applyVols]);
+
+      const loadDeck = useCallback((deck, videoId, title) => {
+        const p = deck === 'A' ? pA.current : pB.current;
+        const rdy = deck === 'A' ? rdyA.current : rdyB.current;
+        if (!p || !rdy) return;
+        p.loadVideoById(videoId);
+        (deck === 'A' ? setInfoA : setInfoB)(prev => ({ ...prev, title: title || videoId, playing: true }));
+        setTimeout(applyVols, 300);
+      }, [applyVols]);
+
+      const startCrossfade = useCallback(() => {
+        const from = cfR.current;
+        const to = activeR.current === 'A' ? 100 : 0;
+        const dur = 8000;
+        const t0 = performance.now();
+        const tick = (now) => {
+          const prog = Math.min((now - t0) / dur, 1);
+          const val = Math.round(from + (to - from) * prog);
+          setCf(val); applyVols(val);
+          if (prog < 1) {
+            requestAnimationFrame(tick);
+          } else {
+            const oldDeck = activeR.current;
+            const newDeck = oldDeck === 'A' ? 'B' : 'A';
+            setActiveDeck(newDeck); activeR.current = newDeck;
+            xfading.current = false;
+            const [next, ...rest] = queueR.current;
+            if (next) { setQueue(rest); queueR.current = rest; loadDeck(oldDeck, next.videoId, next.title); }
+          }
+        };
+        requestAnimationFrame(tick);
+      }, [applyVols, loadDeck]);
+
+      useEffect(() => {
+        const id = setInterval(() => {
+          const poll = (player, rdy, setInfo, deckId) => {
+            if (!player || !rdy) return;
+            try {
+              const time = player.getCurrentTime() || 0;
+              const duration = player.getDuration() || 0;
+              const playing = player.getPlayerState() === 1;
+              const title = player.getVideoData()?.title || '';
+              setInfo(prev => ({ ...prev, time, duration, playing, title: title || prev.title }));
+              if (autoCFR.current && activeR.current === deckId && playing && duration > 0) {
+                const left = duration - time;
+                if (left <= 10 && !xfading.current) {
+                  xfading.current = true;
+                  const [next, ...rest] = queueR.current;
+                  if (next) {
+                    setQueue(rest); queueR.current = rest;
+                    loadDeck(deckId === 'A' ? 'B' : 'A', next.videoId, next.title);
+                    setTimeout(startCrossfade, 800);
+                  } else { xfading.current = false; }
+                }
+              }
+            } catch (_) {}
+          };
+          poll(pA.current, rdyA.current, setInfoA, 'A');
+          poll(pB.current, rdyB.current, setInfoB, 'B');
+        }, 500);
+        return () => clearInterval(id);
+      }, [loadDeck, startCrossfade]);
+
+      useEffect(() => {
+        window._ytReady.then(() => {
+          const mk = (elemId, onRdy, onState) => new YT.Player(elemId, {
+            height: '160', width: '100%', videoId: '',
+            playerVars: { autoplay: 0, controls: 0, modestbranding: 1, rel: 0 },
+            events: { onReady: onRdy, onStateChange: onState },
+          });
+          pA.current = mk('yt-a', () => { rdyA.current = true; }, (e) => {
+            if (e.data === YT.PlayerState.PLAYING) setInfoA(p => ({ ...p, playing: true, title: pA.current?.getVideoData()?.title || p.title }));
+            else if ([YT.PlayerState.PAUSED, YT.PlayerState.ENDED].includes(e.data)) setInfoA(p => ({ ...p, playing: false }));
+          });
+          pB.current = mk('yt-b', () => { rdyB.current = true; }, (e) => {
+            if (e.data === YT.PlayerState.PLAYING) setInfoB(p => ({ ...p, playing: true, title: pB.current?.getVideoData()?.title || p.title }));
+            else if ([YT.PlayerState.PAUSED, YT.PlayerState.ENDED].includes(e.data)) setInfoB(p => ({ ...p, playing: false }));
+          });
+        });
+      }, []);
+
+      const fetchTitle = async (vid) => {
+        try {
+          const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid}&format=json`);
+          if (res.ok) { const data = await res.json(); return data.title || vid; }
+        } catch (_) {}
+        return vid;
+      };
+
+      const handleAdd = async () => {
+        const raw = urlInput.trim();
+        if (!raw) return;
+        const playlistId = extractPlaylistId(raw);
+        const vid = extractVideoId(raw);
+        if (!playlistId && !vid) { alert('קישור YouTube לא תקין'); return; }
+        setUrlInput('');
+
+        if (playlistId) {
+          setLoadingPlaylist(true);
+          const ids = await fetchPlaylistVideoIds(playlistId);
+          setLoadingPlaylist(false);
+          if (!ids.length) { alert('לא הצלחתי לטעון את הפלייליסט — נסי שוב'); return; }
+
+          let startIdx = 0;
+
+          // load first track into Deck A if free
+          if (!infoA.playing && rdyA.current && ids[0]) {
+            loadDeck('A', ids[0], '⏳ טוען...');
+            setActiveDeck('A'); activeR.current = 'A'; setCf(0);
+            fetchTitle(ids[0]).then(t => setInfoA(p => ({ ...p, title: t })));
+            startIdx = 1;
+          }
+          // load second track into Deck B if free
+          if (!infoB.playing && rdyB.current && ids[startIdx]) {
+            loadDeck('B', ids[startIdx], '⏳ טוען...');
+            const bIdx = startIdx;
+            fetchTitle(ids[bIdx]).then(t => setInfoB(p => ({ ...p, title: t })));
+            startIdx++;
+          }
+
+          // rest go to queue
+          const now = Date.now();
+          const placeholders = ids.slice(startIdx).map((id, i) => ({ id: now + i, videoId: id, title: '⏳ טוען...' }));
+          if (placeholders.length) {
+            setQueue(prev => [...prev, ...placeholders]);
+            placeholders.forEach(async (ph) => {
+              const title = await fetchTitle(ph.videoId);
+              setQueue(prev => prev.map(item => item.id === ph.id ? { ...item, title } : item));
+            });
+          }
+          return;
+        }
+
+        const title = await fetchTitle(vid);
+        if (!infoA.playing && rdyA.current) {
+          loadDeck('A', vid, title); setActiveDeck('A'); activeR.current = 'A'; setCf(0);
+        } else if (!infoB.playing && rdyB.current) {
+          loadDeck('B', vid, title);
+          if (!infoA.playing) { setActiveDeck('B'); activeR.current = 'B'; setCf(100); }
+        } else {
+          setQueue(prev => [...prev, { id: Date.now(), videoId: vid, title }]);
+        }
+      };
+
+      const ctrl = (deck, fn) => { const p = deck === 'A' ? pA.current : pB.current; if (p) fn(p); };
+
+      const handleTap = (deck) => {
+        const now = performance.now();
+        const taps    = deck === 'A' ? tapsA    : tapsB;
+        const timer   = deck === 'A' ? tapTimerA : tapTimerB;
+        const setBpm  = deck === 'A' ? setBpmA  : setBpmB;
+        const setFlash = deck === 'A' ? setTapFlashA : setTapFlashB;
+
+        if (timer.current) clearTimeout(timer.current);
+
+        taps.current.push(now);
+        if (taps.current.length > 8) taps.current.shift();
+
+        if (taps.current.length >= 2) {
+          const intervals = taps.current.slice(1).map((t, i) => t - taps.current[i]);
+          const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+          setBpm(Math.round(60000 / avg));
+        }
+
+        setFlash(true);
+        setTimeout(() => setFlash(false), 120);
+
+        timer.current = setTimeout(() => {
+          taps.current = [];
+          setBpm(null);
+        }, 3000);
+      };
+
+      const persistPlaylists = (list) => {
+        setSavedPlaylists(list);
+        localStorage.setItem('hiluz_playlists', JSON.stringify(list));
+      };
+
+      const saveCurrentQueue = () => {
+        if (!queue.length) return;
+        const name = prompt('שם לפלייליסט:');
+        if (!name?.trim()) return;
+        const entry = { name: name.trim(), tracks: queue.map(({ videoId, title }) => ({ videoId, title })), savedAt: Date.now() };
+        persistPlaylists([entry, ...savedPlaylists.filter(p => p.name !== entry.name)]);
+      };
+
+      const loadSaved = (playlist) => {
+        const tracks = playlist.tracks.map((t, i) => ({ ...t, id: Date.now() + i }));
+        setQueue(prev => [...prev, ...tracks]);
+        setShowSaved(false);
+      };
+
+      const deleteSaved = (name) => {
+        persistPlaylists(savedPlaylists.filter(p => p.name !== name));
+        setConfirmDelete(null);
+      };
+
+      const loadFromQueue = (item, deck) => {
+        const p = deck === 'A' ? pA.current : pB.current;
+        const rdy = deck === 'A' ? rdyA.current : rdyB.current;
+        if (!p || !rdy) return;
+
+        const otherPlaying = deck === 'A' ? infoB.playing : infoA.playing;
+
+        if (otherPlaying) {
+          // cue without playing — won't interrupt the other deck
+          p.cueVideoById(item.videoId);
+          (deck === 'A' ? setInfoA : setInfoB)(prev => ({ ...prev, title: item.title, playing: false }));
+          setTimeout(applyVols, 300);
+        } else {
+          loadDeck(deck, item.videoId, item.title);
+          if (deck === 'A') { setActiveDeck('A'); activeR.current = 'A'; setCf(0); }
+          else              { setActiveDeck('B'); activeR.current = 'B'; setCf(100); }
+        }
+
+        setQueue(prev => prev.filter(q => q.id !== item.id));
+        setSelectedQItem(null);
+      };
+
+      const renderDeck = (deck, info, vol, setVol) => {
+        const isA = deck === 'A';
+        const active = activeDeck === deck;
+        const accentBorder = active ? (isA ? 'border-blue-500' : 'border-violet-500') : 'border-gray-700';
+        const badge = active ? (isA ? 'bg-blue-500 text-white' : 'bg-violet-500 text-white') : 'bg-gray-700 text-gray-400';
+        const bar = active ? (isA ? 'bg-blue-500' : 'bg-violet-500') : 'bg-gray-600';
+        const left = info.duration - info.time;
+        const warning = info.duration > 0 && left <= 15 && active && info.playing;
+        const pct = info.duration > 0 ? (info.time / info.duration * 100) : 0;
+        const bpm = isA ? bpmA : bpmB;
+        const tapFlash = isA ? tapFlashA : tapFlashB;
+        const accentColor = isA ? '#3b82f6' : '#8b5cf6';
+        return (
+          <div className={`rounded-2xl p-4 border-2 flex flex-col gap-3 ${accentBorder}`}
+               style={{background:'rgba(10,10,20,0.82)', backdropFilter:'blur(14px)', boxShadow:'0 4px 32px rgba(0,0,0,0.5)'}}>
+            <div className="flex items-center justify-between">
+              <span className={`text-xs font-bold px-3 py-1 rounded-full ${badge}`}>
+                DECK {deck} {active ? '● LIVE' : '○ STANDBY'}
+              </span>
+              {warning && <span className="text-xs font-bold text-orange-400 animate-pulse">⚡ {Math.ceil(left)}s</span>}
+            </div>
+            <div className="rounded-xl overflow-hidden shrink-0" style={{height:160,background:'#000'}}>
+              <div id={`yt-${deck.toLowerCase()}`} style={{width:'100%',height:'100%'}}></div>
+            </div>
+            <p className="text-xs font-medium text-gray-300 truncate" dir="ltr" title={info.title}>
+              {info.title || '— לא נטען טראק —'}
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 w-9 shrink-0 text-left">{fmt(info.time)}</span>
+              <div className="flex-1 rounded-full h-1.5 overflow-hidden" style={{background:'rgba(255,255,255,0.1)'}}>
+                <div className={`h-1.5 rounded-full transition-all ${warning ? 'bg-orange-400' : bar}`} style={{width:`${pct}%`}}></div>
+              </div>
+              <span className="text-xs text-gray-500 w-9 shrink-0">{fmt(info.duration)}</span>
+            </div>
+            <div className="flex justify-center gap-2">
+              <button onClick={() => ctrl(deck, p => p.playVideo())} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition">▶</button>
+              <button onClick={() => ctrl(deck, p => p.pauseVideo())} className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold transition">⏸</button>
+              <button onClick={() => { ctrl(deck, p => p.stopVideo()); (deck === 'A' ? setInfoA : setInfoB)(p => ({...p, playing:false, time:0})); }} className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold transition">⏹</button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500 text-xs">🔊</span>
+              <input type="range" min="0" max="100" value={vol} onChange={e => setVol(Number(e.target.value))} className="flex-1" style={{accentColor}} />
+              <span className="text-xs text-gray-400 w-7 text-left">{vol}</span>
+            </div>
+
+            {/* BPM Tap */}
+            <div className="flex items-center gap-2 pt-1" style={{borderTop:'1px solid rgba(255,255,255,0.07)'}}>
+              <button
+                onPointerDown={e => { e.preventDefault(); handleTap(deck); }}
+                className="px-3 py-1.5 rounded-lg text-xs font-black tracking-widest transition-all select-none"
+                style={{
+                  background: tapFlash ? accentColor : 'rgba(255,255,255,0.07)',
+                  color: tapFlash ? '#fff' : '#9ca3af',
+                  border: `1px solid ${tapFlash ? accentColor : 'rgba(255,255,255,0.1)'}`,
+                  transform: tapFlash ? 'scale(0.95)' : 'scale(1)',
+                  minWidth: 64,
+                }}>
+                TAP
+              </button>
+              <div className="flex-1 flex items-center gap-1.5">
+                {bpm ? (
+                  <>
+                    <span className="font-black text-lg tabular-nums" style={{color: accentColor, lineHeight:1}}>{bpm}</span>
+                    <span className="text-xs text-gray-500">BPM</span>
+                  </>
+                ) : (
+                  <span className="text-xs text-gray-600">הקש בקצב לזיהוי BPM</span>
+                )}
+              </div>
+              {bpm && (
+                <button onClick={() => { (isA ? setBpmA : setBpmB)(null); (isA ? tapsA : tapsB).current = []; }}
+                        className="text-gray-600 hover:text-gray-400 text-xs px-1">✕</button>
+              )}
+            </div>
+          </div>
+        );
+      };
+
+      const cfPercA = Math.round((1 - cf / 100) * 100);
+      const cfPercB = Math.round((cf / 100) * 100);
+      const onAir = infoA.playing || infoB.playing;
+
+      const card = {background:'rgba(10,10,20,0.8)', backdropFilter:'blur(14px)', boxShadow:'0 4px 24px rgba(0,0,0,0.45)'};
+
+      return (
+        <div className="min-h-screen" style={{background:'transparent'}}>
+          <header className="px-6 py-3 flex items-center justify-between sticky top-0 z-10"
+                  style={{background:'rgba(0,0,0,0.92)', borderBottom:'1px solid #7c3aed', backdropFilter:'blur(10px)'}}>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🎧</span>
+              <div className="flex flex-col leading-tight">
+                <span className="font-black text-white text-base" style={{letterSpacing:'0.2em'}}>HILUZ</span>
+                <span className="font-light text-xs" style={{color:'#a855f7', letterSpacing:'0.35em'}}>DJ STUDIO</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${onAir ? 'bg-purple-500 animate-pulse' : 'bg-gray-600'}`}></div>
+              <span className="text-xs font-bold tracking-widest" style={{color: onAir ? '#a855f7' : '#6b7280'}}>{onAir ? 'ON AIR' : 'OFFLINE'}</span>
+            </div>
+          </header>
+
+          <main className="max-w-4xl mx-auto p-4 space-y-4">
+            <div className="rounded-2xl p-4 border border-gray-700" style={card}>
+              <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">הוסף טראק</p>
+              <div className="flex gap-2">
+                <input type="text" value={urlInput} onChange={e => setUrlInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAdd()}
+                  placeholder="https://youtube.com/watch?v=... או youtu.be/..."
+                  className="flex-1 px-4 py-2.5 rounded-xl text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  style={{background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)'}}
+                  dir="ltr" />
+                <button onClick={handleAdd} disabled={loadingPlaylist}
+                        className="px-5 py-2.5 text-white rounded-xl text-sm font-semibold transition shadow-sm whitespace-nowrap disabled:opacity-60"
+                        style={{background:'linear-gradient(135deg,#6d28d9,#4f46e5)'}}>
+                  {loadingPlaylist ? '⏳ טוען פלייליסט...' : '+ הוסף'}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {renderDeck('A', infoA, deckAVol, setDeckAVol)}
+              {renderDeck('B', infoB, deckBVol, setDeckBVol)}
+            </div>
+
+            <div className="rounded-2xl p-5 border border-gray-700 space-y-4" style={card}>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold text-gray-500 w-24 shrink-0">עוצמה כללית</span>
+                <input type="range" min="0" max="100" value={masterVol} onChange={e => setMasterVol(Number(e.target.value))} className="flex-1" style={{accentColor:'#6366f1'}} />
+                <span className="text-sm text-gray-400 w-8 text-left">{masterVol}</span>
+              </div>
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="font-bold text-blue-400">A {cfPercA}%</span>
+                  <span className="text-gray-500 font-medium">— Crossfader —</span>
+                  <span className="font-bold text-violet-400">{cfPercB}% B</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-blue-400 text-sm">A</span>
+                  <input type="range" min="0" max="100" value={cf} onChange={e => setCf(Number(e.target.value))} className="flex-1" style={{accentColor:'#8b5cf6'}} />
+                  <span className="font-bold text-violet-400 text-sm">B</span>
+                </div>
+              </div>
+              <div className="flex gap-3 flex-wrap justify-center">
+                <button onClick={() => setAutoCfOn(v => !v)}
+                  className={`px-4 py-2 rounded-xl text-sm font-medium transition border-2 ${autoCfOn ? 'border-green-600 text-green-400' : 'border-gray-600 text-gray-500'}`}
+                  style={{background: autoCfOn ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.04)'}}>
+                  {autoCfOn ? '✓ Auto-Crossfade פעיל' : 'Auto-Crossfade כבוי'}
+                </button>
+                <button onClick={() => setMonitorOn(v => !v)}
+                  className={`px-4 py-2 rounded-xl text-sm font-medium transition border-2 ${monitorOn ? 'border-orange-500 text-orange-400' : 'border-gray-600 text-gray-500'}`}
+                  style={{background: monitorOn ? 'rgba(249,115,22,0.1)' : 'rgba(255,255,255,0.04)'}}>
+                  🎧 Monitor {monitorOn ? 'פעיל' : ''}
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl p-4 border border-gray-700" style={card}>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-gray-300">תור — {queue.length} טראקים</span>
+                <div className="flex items-center gap-2">
+                  {queue.length > 0 && (
+                    <button onClick={saveCurrentQueue}
+                            className="text-xs font-semibold px-2 py-1 rounded-lg transition"
+                            style={{background:'rgba(139,92,246,0.2)', color:'#a78bfa', border:'1px solid rgba(139,92,246,0.35)'}}>
+                      💾 שמור
+                    </button>
+                  )}
+                  <button onClick={() => setShowSaved(v => !v)}
+                          className="text-xs font-semibold px-2 py-1 rounded-lg transition"
+                          style={{background: showSaved ? 'rgba(139,92,246,0.25)' : 'rgba(255,255,255,0.06)', color: showSaved ? '#a78bfa' : '#6b7280', border:'1px solid rgba(255,255,255,0.08)'}}>
+                    📂 {savedPlaylists.length > 0 ? `שמורים (${savedPlaylists.length})` : 'שמורים'}
+                  </button>
+                  {queue.length > 0 && <button onClick={() => setQueue([])} className="text-xs text-red-400 hover:text-red-300 transition">נקה הכל</button>}
+                </div>
+              </div>
+
+              {/* Saved playlists panel */}
+              {showSaved && (
+                <div className="mb-3 rounded-xl overflow-hidden" style={{border:'1px solid rgba(139,92,246,0.3)', background:'rgba(139,92,246,0.07)'}}>
+                  {savedPlaylists.length === 0 ? (
+                    <p className="text-xs text-gray-600 text-center py-4">אין פלייליסטים שמורים עדיין</p>
+                  ) : (
+                    <div className="divide-y" style={{borderColor:'rgba(255,255,255,0.05)'}}>
+                      {savedPlaylists.map(pl => (
+                        <div key={pl.name} className="flex items-center gap-2 px-3 py-2.5">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-200 truncate">{pl.name}</p>
+                            <p className="text-xs text-gray-600">{pl.tracks.length} שירים · {new Date(pl.savedAt).toLocaleDateString('he-IL')}</p>
+                          </div>
+                          <button onClick={() => loadSaved(pl)}
+                                  className="text-xs px-2 py-1 rounded-lg font-medium shrink-0"
+                                  style={{background:'rgba(139,92,246,0.25)', color:'#a78bfa', border:'1px solid rgba(139,92,246,0.4)'}}>
+                            ▶ טען
+                          </button>
+                          {confirmDelete === pl.name ? (
+                            <div className="flex gap-1 shrink-0">
+                              <button onClick={() => deleteSaved(pl.name)} className="text-xs px-2 py-1 rounded-lg font-medium" style={{background:'rgba(239,68,68,0.2)', color:'#f87171', border:'1px solid rgba(239,68,68,0.4)'}}>מחק</button>
+                              <button onClick={() => setConfirmDelete(null)} className="text-xs text-gray-500 px-1">ביטול</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setConfirmDelete(pl.name)} className="text-gray-600 hover:text-red-400 transition text-sm px-1 shrink-0">✕</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {queue.length === 0 ? (
+                <p className="text-xs text-gray-600 text-center py-6">התור ריק — הוסף קישורי YouTube למעלה</p>
+              ) : (
+                <div className="space-y-1 max-h-52 overflow-y-auto">
+                  {queue.map((item, i) => {
+                    const isSelected = selectedQItem === item.id;
+                    const isDragOver = dragOverIdx === i;
+                    return (
+                      <div key={item.id}
+                           draggable
+                           onDragStart={() => { dragSrcIdx.current = i; }}
+                           onDragOver={e => { e.preventDefault(); setDragOverIdx(i); }}
+                           onDragLeave={() => setDragOverIdx(null)}
+                           onDrop={e => {
+                             e.preventDefault();
+                             const from = dragSrcIdx.current;
+                             if (from === null || from === i) { setDragOverIdx(null); return; }
+                             setQueue(prev => {
+                               const next = [...prev];
+                               const [moved] = next.splice(from, 1);
+                               next.splice(i, 0, moved);
+                               return next;
+                             });
+                             dragSrcIdx.current = null;
+                             setDragOverIdx(null);
+                           }}
+                           onDragEnd={() => { dragSrcIdx.current = null; setDragOverIdx(null); }}
+                           className="rounded-xl overflow-hidden transition-all select-none"
+                           style={{
+                             background: isSelected ? 'rgba(139,92,246,0.18)' : 'rgba(255,255,255,0.05)',
+                             border: isDragOver ? '1px solid rgba(139,92,246,0.8)' : isSelected ? '1px solid rgba(139,92,246,0.5)' : '1px solid transparent',
+                             boxShadow: isDragOver ? '0 0 0 2px rgba(139,92,246,0.3)' : 'none',
+                             cursor: 'grab',
+                           }}>
+                        <div className="flex items-center gap-2 px-3 py-2"
+                             onClick={() => setSelectedQItem(isSelected ? null : item.id)}>
+                          <span className="text-gray-600 text-xs shrink-0" style={{cursor:'grab'}}>⠿</span>
+                          <span className="text-xs text-gray-600 w-5 shrink-0">{i + 1}</span>
+                          <span className="flex-1 text-xs text-gray-300 truncate font-medium" dir="ltr">{item.title}</span>
+                          <span className="text-gray-500 text-xs">{isSelected ? '▲' : '▼'}</span>
+                          <button onClick={e => { e.stopPropagation(); setQueue(prev => prev.filter(q => q.id !== item.id)); setSelectedQItem(null); }}
+                                  className="text-gray-600 hover:text-red-400 transition text-sm px-1">✕</button>
+                        </div>
+                        {isSelected && (
+                          <div className="flex gap-2 px-3 pb-2">
+                            <button onClick={() => loadFromQueue(item, 'A')}
+                                    className="flex-1 py-1.5 rounded-lg text-xs font-bold transition"
+                                    style={{background:'rgba(59,130,246,0.25)', color:'#60a5fa', border:'1px solid rgba(59,130,246,0.4)'}}>
+                              ▶ Deck A
+                            </button>
+                            <button onClick={() => loadFromQueue(item, 'B')}
+                                    className="flex-1 py-1.5 rounded-lg text-xs font-bold transition"
+                                    style={{background:'rgba(139,92,246,0.25)', color:'#a78bfa', border:'1px solid rgba(139,92,246,0.4)'}}>
+                              ▶ Deck B
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
