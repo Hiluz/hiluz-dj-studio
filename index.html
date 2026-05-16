@@ -346,8 +346,22 @@
               setInfoA(p => ({ ...p, videoId: savedDecks.a.videoId, title: savedDecks.a.title }));
             }
           }, (e) => {
-            if (e.data === YT.PlayerState.PLAYING) setInfoA(p => ({ ...p, playing: true, title: pA.current?.getVideoData()?.title || p.title }));
-            else if ([YT.PlayerState.PAUSED, YT.PlayerState.ENDED].includes(e.data)) setInfoA(p => ({ ...p, playing: false }));
+            if (e.data === YT.PlayerState.PLAYING) {
+              setInfoA(p => ({ ...p, playing: true, title: pA.current?.getVideoData()?.title || p.title }));
+            } else if (e.data === YT.PlayerState.PAUSED) {
+              setInfoA(p => ({ ...p, playing: false }));
+            } else if (e.data === YT.PlayerState.ENDED) {
+              setInfoA(p => ({ ...p, playing: false }));
+              if (activeR.current === 'A' && !xfading.current) {
+                const [next, ...rest] = queueR.current;
+                if (next) {
+                  setQueue(rest); queueR.current = rest;
+                  pA.current.loadVideoById(next.videoId);
+                  setInfoA(p => ({ ...p, videoId: next.videoId, title: next.title, playing: true }));
+                  setTimeout(applyVols, 300);
+                }
+              }
+            }
           });
           pB.current = mk('yt-b', () => {
             rdyB.current = true;
@@ -356,8 +370,22 @@
               setInfoB(p => ({ ...p, videoId: savedDecks.b.videoId, title: savedDecks.b.title }));
             }
           }, (e) => {
-            if (e.data === YT.PlayerState.PLAYING) setInfoB(p => ({ ...p, playing: true, title: pB.current?.getVideoData()?.title || p.title }));
-            else if ([YT.PlayerState.PAUSED, YT.PlayerState.ENDED].includes(e.data)) setInfoB(p => ({ ...p, playing: false }));
+            if (e.data === YT.PlayerState.PLAYING) {
+              setInfoB(p => ({ ...p, playing: true, title: pB.current?.getVideoData()?.title || p.title }));
+            } else if (e.data === YT.PlayerState.PAUSED) {
+              setInfoB(p => ({ ...p, playing: false }));
+            } else if (e.data === YT.PlayerState.ENDED) {
+              setInfoB(p => ({ ...p, playing: false }));
+              if (activeR.current === 'B' && !xfading.current) {
+                const [next, ...rest] = queueR.current;
+                if (next) {
+                  setQueue(rest); queueR.current = rest;
+                  pB.current.loadVideoById(next.videoId);
+                  setInfoB(p => ({ ...p, videoId: next.videoId, title: next.title, playing: true }));
+                  setTimeout(applyVols, 300);
+                }
+              }
+            }
           });
         });
       }, []);
