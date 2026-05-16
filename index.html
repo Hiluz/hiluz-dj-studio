@@ -214,8 +214,8 @@
       const [activeDeck, setActiveDeck] = useState('A');
       const [deckAVol, setDeckAVol]     = useState(100);
       const [deckBVol, setDeckBVol]     = useState(100);
-      const [infoA, setInfoA]           = useState({ title: '', time: 0, duration: 0, playing: false });
-      const [infoB, setInfoB]           = useState({ title: '', time: 0, duration: 0, playing: false });
+      const [infoA, setInfoA]           = useState({ videoId: '', title: '', time: 0, duration: 0, playing: false });
+      const [infoB, setInfoB]           = useState({ videoId: '', title: '', time: 0, duration: 0, playing: false });
       const [loadingPlaylist, setLoadingPlaylist] = useState(false);
       const [selectedQItem, setSelectedQItem] = useState(null);
       const [dragOverIdx, setDragOverIdx] = useState(null);
@@ -239,6 +239,11 @@
       const monitorR = useRef(false), xfading = useRef(false), autoCFR = useRef(true);
 
       useEffect(() => { localStorage.setItem('hiluz_queue', JSON.stringify(queue)); }, [queue]);
+      useEffect(() => {
+        const a = infoA.videoId ? { videoId: infoA.videoId, title: infoA.title } : null;
+        const b = infoB.videoId ? { videoId: infoB.videoId, title: infoB.title } : null;
+        localStorage.setItem('hiluz_decks', JSON.stringify({ a, b }));
+      }, [infoA.videoId, infoA.title, infoB.videoId, infoB.title]);
       useEffect(() => { cfR.current = cf; }, [cf]);
       useEffect(() => { activeR.current = activeDeck; }, [activeDeck]);
       useEffect(() => { queueR.current = queue; }, [queue]);
@@ -269,7 +274,7 @@
         const rdy = deck === 'A' ? rdyA.current : rdyB.current;
         if (!p || !rdy) return;
         p.loadVideoById(videoId);
-        (deck === 'A' ? setInfoA : setInfoB)(prev => ({ ...prev, title: title || videoId, playing: true }));
+        (deck === 'A' ? setInfoA : setInfoB)(prev => ({ ...prev, videoId, title: title || videoId, playing: true }));
         setTimeout(applyVols, 300);
       }, [applyVols]);
 
@@ -333,11 +338,24 @@
             playerVars: { autoplay: 0, controls: 0, modestbranding: 1, rel: 0 },
             events: { onReady: onRdy, onStateChange: onState },
           });
-          pA.current = mk('yt-a', () => { rdyA.current = true; }, (e) => {
+          const savedDecks = JSON.parse(localStorage.getItem('hiluz_decks') || '{}');
+          pA.current = mk('yt-a', () => {
+            rdyA.current = true;
+            if (savedDecks.a?.videoId) {
+              pA.current.cueVideoById(savedDecks.a.videoId);
+              setInfoA(p => ({ ...p, videoId: savedDecks.a.videoId, title: savedDecks.a.title }));
+            }
+          }, (e) => {
             if (e.data === YT.PlayerState.PLAYING) setInfoA(p => ({ ...p, playing: true, title: pA.current?.getVideoData()?.title || p.title }));
             else if ([YT.PlayerState.PAUSED, YT.PlayerState.ENDED].includes(e.data)) setInfoA(p => ({ ...p, playing: false }));
           });
-          pB.current = mk('yt-b', () => { rdyB.current = true; }, (e) => {
+          pB.current = mk('yt-b', () => {
+            rdyB.current = true;
+            if (savedDecks.b?.videoId) {
+              pB.current.cueVideoById(savedDecks.b.videoId);
+              setInfoB(p => ({ ...p, videoId: savedDecks.b.videoId, title: savedDecks.b.title }));
+            }
+          }, (e) => {
             if (e.data === YT.PlayerState.PLAYING) setInfoB(p => ({ ...p, playing: true, title: pB.current?.getVideoData()?.title || p.title }));
             else if ([YT.PlayerState.PAUSED, YT.PlayerState.ENDED].includes(e.data)) setInfoB(p => ({ ...p, playing: false }));
           });
@@ -470,7 +488,7 @@
         if (otherPlaying) {
           // cue without playing — won't interrupt the other deck
           p.cueVideoById(item.videoId);
-          (deck === 'A' ? setInfoA : setInfoB)(prev => ({ ...prev, title: item.title, playing: false }));
+          (deck === 'A' ? setInfoA : setInfoB)(prev => ({ ...prev, videoId: item.videoId, title: item.title, playing: false }));
           setTimeout(applyVols, 300);
         } else {
           loadDeck(deck, item.videoId, item.title);
