@@ -203,7 +203,9 @@
     }
 
     function App() {
-      const [queue, setQueue]           = useState([]);
+      const [queue, setQueue]           = useState(() => {
+        try { return JSON.parse(localStorage.getItem('hiluz_queue') || '[]'); } catch { return []; }
+      });
       const [urlInput, setUrlInput]     = useState('');
       const [masterVol, setMasterVol]   = useState(80);
       const [cf, setCf]                 = useState(0);
@@ -236,6 +238,7 @@
       const masterR = useRef(80), dAvolR = useRef(100), dBvolR = useRef(100);
       const monitorR = useRef(false), xfading = useRef(false), autoCFR = useRef(true);
 
+      useEffect(() => { localStorage.setItem('hiluz_queue', JSON.stringify(queue)); }, [queue]);
       useEffect(() => { cfR.current = cf; }, [cf]);
       useEffect(() => { activeR.current = activeDeck; }, [activeDeck]);
       useEffect(() => { queueR.current = queue; }, [queue]);
