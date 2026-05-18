@@ -217,6 +217,7 @@
       const [infoA, setInfoA]           = useState({ videoId: '', title: '', time: 0, duration: 0, playing: false });
       const [infoB, setInfoB]           = useState({ videoId: '', title: '', time: 0, duration: 0, playing: false });
       const [loadingPlaylist, setLoadingPlaylist] = useState(false);
+      const [showIntro, setShowIntro] = useState(() => !localStorage.getItem('hiluz_intro_seen'));
       const [selectedQItem, setSelectedQItem] = useState(null);
       const [dragOverIdx, setDragOverIdx] = useState(null);
       const dragSrcIdx = useRef(null);
@@ -482,6 +483,8 @@
         }, 3000);
       };
 
+      const closeIntro = () => { localStorage.setItem('hiluz_intro_seen', '1'); setShowIntro(false); };
+
       const persistPlaylists = (list) => {
         setSavedPlaylists(list);
         localStorage.setItem('hiluz_playlists', JSON.stringify(list));
@@ -623,9 +626,14 @@
                 <span className="font-light text-xs" style={{color:'#a855f7', letterSpacing:'0.35em'}}>DJ STUDIO</span>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${onAir ? 'bg-purple-500 animate-pulse' : 'bg-gray-600'}`}></div>
-              <span className="text-xs font-bold tracking-widest" style={{color: onAir ? '#a855f7' : '#6b7280'}}>{onAir ? 'ON AIR' : 'OFFLINE'}</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${onAir ? 'bg-purple-500 animate-pulse' : 'bg-gray-600'}`}></div>
+                <span className="text-xs font-bold tracking-widest" style={{color: onAir ? '#a855f7' : '#6b7280'}}>{onAir ? 'ON AIR' : 'OFFLINE'}</span>
+              </div>
+              <button onClick={() => setShowIntro(true)}
+                      className="w-6 h-6 rounded-full text-xs font-black flex items-center justify-center transition"
+                      style={{background:'rgba(168,85,247,0.2)', color:'#a855f7', border:'1px solid rgba(168,85,247,0.4)'}}>?</button>
             </div>
           </header>
 
@@ -800,6 +808,92 @@
               )}
             </div>
           </main>
+
+          {/* Intro modal */}
+          {showIntro && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                 style={{background:'rgba(0,0,0,0.85)', backdropFilter:'blur(6px)'}}>
+              <div className="w-full max-w-md rounded-2xl overflow-hidden"
+                   style={{background:'#0e0e1a', border:'1px solid rgba(168,85,247,0.4)', boxShadow:'0 0 60px rgba(139,92,246,0.2)'}}>
+
+                {/* Header */}
+                <div className="px-6 py-4 flex items-center justify-between" style={{borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
+                  <div>
+                    <p className="font-black text-white tracking-widest text-sm" style={{letterSpacing:'0.2em'}}>HILUZ</p>
+                    <p className="text-xs" style={{color:'#a855f7', letterSpacing:'0.3em'}}>DJ STUDIO — מדריך</p>
+                  </div>
+                  <button onClick={closeIntro} className="text-gray-500 hover:text-white text-xl transition">✕</button>
+                </div>
+
+                {/* Content */}
+                <div className="px-6 py-4 space-y-4 max-h-96 overflow-y-auto text-right">
+
+                  {[
+                    {
+                      icon: '🎵', title: 'הוסף טראק',
+                      desc: 'הדביקי קישור YouTube (שיר בודד או פלייליסט שלם) ולחצי + הוסף. הפלייליסט נטען אוטומטית לתור.'
+                    },
+                    {
+                      icon: '🎛️', title: 'Deck A / Deck B',
+                      desc: 'שני נגנים עצמאיים. ה-LIVE הוא מה שנשמע. ה-STANDBY הוא מה שמוכן לכניסה הבאה.'
+                    },
+                    {
+                      icon: '▶ ⏸ ⏹', title: 'כפתורי ניגון',
+                      desc: 'נגן / השהה / עצור — לכל Deck בנפרד.'
+                    },
+                    {
+                      icon: '🔊', title: 'עוצמה לכל Deck',
+                      desc: 'הסליידר מתחת לכל Deck שולט בעוצמה שלו בנפרד.'
+                    },
+                    {
+                      icon: '⚡', title: 'אזהרת סיום',
+                      desc: 'כשנשארות פחות מ-15 שניות לשיר, מופיע טיימר כתום. לחצי למקם את השיר הבא בזמן.'
+                    },
+                    {
+                      icon: '🎚️', title: 'Crossfader',
+                      desc: 'שולט כמה נשמע כל Deck. שמאל = A בלבד, ימין = B בלבד, אמצע = שניהם.'
+                    },
+                    {
+                      icon: '✓', title: 'Auto-Crossfade',
+                      desc: 'כשמופעל — 10 שניות לפני סיום השיר, השיר הבא נטען אוטומטית ומתחיל מעבר חלק בין הDeck-ים.'
+                    },
+                    {
+                      icon: '🎧', title: 'Monitor',
+                      desc: 'מאפשר להאזין בשקט לDeck שב-STANDBY לפני שמכניסים אותו — בלי שהקהל ישמע.'
+                    },
+                    {
+                      icon: '🥁', title: 'TAP BPM',
+                      desc: 'הקישי על הכפתור בקצב השיר — אחרי 2-3 הקשות תקבלי את ה-BPM. מתאפס אחרי 3 שניות.'
+                    },
+                    {
+                      icon: '📋', title: 'תור',
+                      desc: 'רשימת השירים הממתינים. אפשר לגרור לשינוי סדר, ללחוץ על שיר כדי לבחור לאיזה Deck לשלוח אותו, ולמחוק ב-✕.'
+                    },
+                    {
+                      icon: '💾', title: 'שמירת פלייליסט',
+                      desc: 'כשיש שירים בתור — לחצי 💾 שמור, תני שם, והפלייליסט ישמר. לטעינה לחזור לחצי 📂 שמורים.'
+                    },
+                  ].map(item => (
+                    <div key={item.title} className="flex gap-3 items-start">
+                      <span className="text-lg shrink-0 mt-0.5">{item.icon}</span>
+                      <div>
+                        <p className="text-xs font-bold text-white mb-0.5">{item.title}</p>
+                        <p className="text-xs text-gray-400 leading-relaxed">{item.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4" style={{borderTop:'1px solid rgba(255,255,255,0.07)'}}>
+                  <button onClick={closeIntro} className="w-full py-2.5 rounded-xl text-sm font-bold text-white transition"
+                          style={{background:'linear-gradient(135deg,#6d28d9,#4f46e5)'}}>
+                    בואי נתחיל 🎧
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     }
