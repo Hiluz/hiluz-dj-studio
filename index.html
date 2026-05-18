@@ -12,6 +12,29 @@
     input[type=range] { cursor: pointer; }
     * { box-sizing: border-box; }
 
+    [data-tooltip] { position: relative; }
+    [data-tooltip]::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%; transform: translateX(-50%);
+      background: rgba(15,15,30,0.97);
+      color: #e2e8f0;
+      font-size: 11px;
+      font-family: sans-serif;
+      white-space: nowrap;
+      padding: 5px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(168,85,247,0.35);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 100;
+      direction: rtl;
+    }
+    [data-tooltip]:hover::after { opacity: 1; }
+
     body {
       margin: 0; padding: 0;
       background: #06060d;
@@ -566,9 +589,9 @@
               <span className="text-xs text-gray-500 w-9 shrink-0">{fmt(info.duration)}</span>
             </div>
             <div className="flex justify-center gap-2">
-              <button onClick={() => ctrl(deck, p => p.playVideo())} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition">▶</button>
-              <button onClick={() => ctrl(deck, p => p.pauseVideo())} className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold transition">⏸</button>
-              <button onClick={() => { ctrl(deck, p => p.stopVideo()); (deck === 'A' ? setInfoA : setInfoB)(p => ({...p, playing:false, time:0})); }} className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold transition">⏹</button>
+              <button data-tooltip="נגן" onClick={() => ctrl(deck, p => p.playVideo())} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition">▶</button>
+              <button data-tooltip="השהה" onClick={() => ctrl(deck, p => p.pauseVideo())} className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold transition">⏸</button>
+              <button data-tooltip="עצור ואפס" onClick={() => { ctrl(deck, p => p.stopVideo()); (deck === 'A' ? setInfoA : setInfoB)(p => ({...p, playing:false, time:0})); }} className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold transition">⏹</button>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-gray-500 text-xs">🔊</span>
@@ -579,6 +602,7 @@
             {/* BPM Tap */}
             <div className="flex items-center gap-2 pt-1" style={{borderTop:'1px solid rgba(255,255,255,0.07)'}}>
               <button
+                data-tooltip="הקש בקצב השיר לחישוב BPM"
                 onPointerDown={e => { e.preventDefault(); handleTap(deck); }}
                 className="px-3 py-1.5 rounded-lg text-xs font-black tracking-widest transition-all select-none"
                 style={{
@@ -631,7 +655,7 @@
                 <div className={`w-2 h-2 rounded-full ${onAir ? 'bg-purple-500 animate-pulse' : 'bg-gray-600'}`}></div>
                 <span className="text-xs font-bold tracking-widest" style={{color: onAir ? '#a855f7' : '#6b7280'}}>{onAir ? 'ON AIR' : 'OFFLINE'}</span>
               </div>
-              <button onClick={() => setShowIntro(true)}
+              <button data-tooltip="פתח מדריך" onClick={() => setShowIntro(true)}
                       className="w-6 h-6 rounded-full text-xs font-black flex items-center justify-center transition"
                       style={{background:'rgba(168,85,247,0.2)', color:'#a855f7', border:'1px solid rgba(168,85,247,0.4)'}}>?</button>
             </div>
@@ -647,7 +671,7 @@
                   className="flex-1 px-4 py-2.5 rounded-xl text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   style={{background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)'}}
                   dir="ltr" />
-                <button onClick={handleAdd} disabled={loadingPlaylist}
+                <button data-tooltip="הוסף שיר בודד או פלייליסט שלם" onClick={handleAdd} disabled={loadingPlaylist}
                         className="px-5 py-2.5 text-white rounded-xl text-sm font-semibold transition shadow-sm whitespace-nowrap disabled:opacity-60"
                         style={{background:'linear-gradient(135deg,#6d28d9,#4f46e5)'}}>
                   {loadingPlaylist ? '⏳ טוען פלייליסט...' : '+ הוסף'}
@@ -679,12 +703,12 @@
                 </div>
               </div>
               <div className="flex gap-3 flex-wrap justify-center">
-                <button onClick={() => setAutoCfOn(v => !v)}
+                <button data-tooltip="מעבר אוטומטי חלק בין שירים 10 שניות לפני הסוף" onClick={() => setAutoCfOn(v => !v)}
                   className={`px-4 py-2 rounded-xl text-sm font-medium transition border-2 ${autoCfOn ? 'border-green-600 text-green-400' : 'border-gray-600 text-gray-500'}`}
                   style={{background: autoCfOn ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.04)'}}>
                   {autoCfOn ? '✓ Auto-Crossfade פעיל' : 'Auto-Crossfade כבוי'}
                 </button>
-                <button onClick={() => setMonitorOn(v => !v)}
+                <button data-tooltip="האזנה מוקדמת ל-Deck שב-Standby — הקהל לא שומע" onClick={() => setMonitorOn(v => !v)}
                   className={`px-4 py-2 rounded-xl text-sm font-medium transition border-2 ${monitorOn ? 'border-orange-500 text-orange-400' : 'border-gray-600 text-gray-500'}`}
                   style={{background: monitorOn ? 'rgba(249,115,22,0.1)' : 'rgba(255,255,255,0.04)'}}>
                   🎧 Monitor {monitorOn ? 'פעיל' : ''}
@@ -697,18 +721,18 @@
                 <span className="text-sm font-semibold text-gray-300">תור — {queue.length} טראקים</span>
                 <div className="flex items-center gap-2">
                   {queue.length > 0 && (
-                    <button onClick={saveCurrentQueue}
+                    <button data-tooltip="שמור את התור הנוכחי כפלייליסט" onClick={saveCurrentQueue}
                             className="text-xs font-semibold px-2 py-1 rounded-lg transition"
                             style={{background:'rgba(139,92,246,0.2)', color:'#a78bfa', border:'1px solid rgba(139,92,246,0.35)'}}>
                       💾 שמור
                     </button>
                   )}
-                  <button onClick={() => setShowSaved(v => !v)}
+                  <button data-tooltip="פתח פלייליסטים שמורים" onClick={() => setShowSaved(v => !v)}
                           className="text-xs font-semibold px-2 py-1 rounded-lg transition"
                           style={{background: showSaved ? 'rgba(139,92,246,0.25)' : 'rgba(255,255,255,0.06)', color: showSaved ? '#a78bfa' : '#6b7280', border:'1px solid rgba(255,255,255,0.08)'}}>
                     📂 {savedPlaylists.length > 0 ? `שמורים (${savedPlaylists.length})` : 'שמורים'}
                   </button>
-                  {queue.length > 0 && <button onClick={() => setQueue([])} className="text-xs text-red-400 hover:text-red-300 transition">נקה הכל</button>}
+                  {queue.length > 0 && <button data-tooltip="מחק את כל השירים מהתור" onClick={() => setQueue([])} className="text-xs text-red-400 hover:text-red-300 transition">נקה הכל</button>}
                 </div>
               </div>
 
