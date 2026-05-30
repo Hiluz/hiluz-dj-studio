@@ -177,8 +177,125 @@
       else window.onYouTubeIframeAPIReady = res;
     });
   </script>
+  <style>
+    #monitor-wrap {
+      width: 100%;
+      background: #000810;
+      border-bottom: 1px solid rgba(100,80,220,0.3);
+      position: relative;
+      overflow: hidden;
+    }
+    #monitor-canvas { display: block; width: 100%; height: 110px; }
+    #monitor-overlay {
+      position: absolute; inset: 0; pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg, transparent 0px, transparent 2px,
+        rgba(0,0,0,0.13) 2px, rgba(0,0,0,0.13) 3px
+      );
+    }
+    #monitor-label {
+      position: absolute; bottom: 8px; left: 0; right: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 14px;
+      pointer-events: none;
+    }
+    #monitor-title {
+      font-size: 11px; font-family: 'Courier New', monospace;
+      color: rgba(255,255,255,0.85); letter-spacing: 0.05em;
+      max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    #monitor-status {
+      font-size: 10px; font-family: 'Courier New', monospace;
+      color: rgba(255,255,255,0.75); letter-spacing: 0.12em;
+    }
+    #monitor-corner {
+      position: absolute; top: 7px; left: 12px;
+      font-size: 9px; font-family: 'Courier New', monospace;
+      color: rgba(255,255,255,0.45); letter-spacing: 0.15em;
+    }
+  </style>
+
   <script type="text/babel">
     const { useState, useEffect, useRef, useCallback } = React;
+
+    function Visualizer({ playing, title, activeDeck }) {
+      const canvasRef = useRef(null);
+      const barsRef = useRef(Array.from({length: 80}, () => ({ val: 2, target: 2 })));
+      const rafRef = useRef(null);
+      const titleRef = useRef(title);
+      const playingRef = useRef(playing);
+
+      useEffect(() => { titleRef.current = title; }, [title]);
+      useEffect(() => { playingRef.current = playing; }, [playing]);
+
+      useEffect(() => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        const N = 80;
+
+        function draw() {
+          const W = canvas.offsetWidth * window.devicePixelRatio;
+          const H = 110 * window.devicePixelRatio;
+          canvas.width = W; canvas.height = H;
+
+          ctx.fillStyle = '#000810';
+          ctx.fillRect(0, 0, W, H);
+
+          const gap = 2 * window.devicePixelRatio;
+          const barW = (W - gap * (N - 1)) / N;
+          const bars = barsRef.current;
+
+          bars.forEach((bar, i) => {
+            const freq = i / N;
+            const emphasis = Math.pow(Math.sin(freq * Math.PI), 0.6);
+            if (playingRef.current) {
+              if (Math.random() < 0.18) {
+                bar.target = (Math.random() * 0.72 + 0.06) * emphasis * H * 0.88;
+              }
+              bar.val += (bar.target - bar.val) * 0.18;
+            } else {
+              if (Math.random() < 0.04) bar.target = Math.random() * 4 * window.devicePixelRatio;
+              else bar.target = 2 * window.devicePixelRatio;
+              bar.val += (bar.target - bar.val) * 0.1;
+            }
+
+            const h = Math.max(2 * window.devicePixelRatio, bar.val);
+            const x = i * (barW + gap);
+            const y = H - h;
+
+            const hue = 200 + freq * 100;
+            const grad = ctx.createLinearGradient(0, y, 0, H);
+            grad.addColorStop(0, `hsla(${hue},85%,65%,0.92)`);
+            grad.addColorStop(1, `hsla(${hue + 30},60%,25%,0.5)`);
+            ctx.fillStyle = grad;
+            ctx.fillRect(x, y, barW, h);
+
+            // bright cap
+            ctx.fillStyle = `hsla(${hue},90%,88%,0.85)`;
+            ctx.fillRect(x, y, barW, 2 * window.devicePixelRatio);
+          });
+
+          rafRef.current = requestAnimationFrame(draw);
+        }
+
+        rafRef.current = requestAnimationFrame(draw);
+        return () => cancelAnimationFrame(rafRef.current);
+      }, []);
+
+      const liveTitle = title || (playing ? '— PLAYING —' : '— STANDBY —');
+
+      return (
+        <div id="monitor-wrap">
+          <canvas id="monitor-canvas" ref={canvasRef} />
+          <div id="monitor-overlay" />
+          <div id="monitor-corner">SPECTRUM ANALYZER</div>
+          <div id="monitor-label">
+            <span id="monitor-title">{liveTitle}</span>
+            <span id="monitor-status">{playing ? `▶ DECK ${activeDeck} LIVE` : '◼ IDLE'}</span>
+          </div>
+        </div>
+      );
+    }
 
     function extractVideoId(str) {
       const m = str.match(/(?:youtube\.com\/(?:watch\?.*?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
@@ -660,6 +777,12 @@
                       style={{background:'rgba(168,85,247,0.2)', color:'#a855f7', border:'1px solid rgba(168,85,247,0.4)'}}>?</button>
             </div>
           </header>
+
+          <Visualizer
+            playing={infoA.playing || infoB.playing}
+            title={activeDeck === 'A' ? infoA.title : infoB.title}
+            activeDeck={activeDeck}
+          />
 
           <main className="max-w-4xl mx-auto p-4 space-y-4">
             <div className="rounded-2xl p-4 border border-gray-700" style={card}>
