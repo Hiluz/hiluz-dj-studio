@@ -282,15 +282,12 @@
         return () => cancelAnimationFrame(rafRef.current);
       }, []);
 
-      const liveTitle = title || (playing ? '— PLAYING —' : '— STANDBY —');
-
       return (
         <div id="monitor-wrap">
           <canvas id="monitor-canvas" ref={canvasRef} />
           <div id="monitor-overlay" />
           <div id="monitor-corner">SPECTRUM ANALYZER</div>
           <div id="monitor-label">
-            <span id="monitor-title">{liveTitle}</span>
             <span id="monitor-status">{playing ? `▶ DECK ${activeDeck} LIVE` : '◼ IDLE'}</span>
           </div>
         </div>
@@ -674,7 +671,9 @@
 
       const renderDeck = (deck, info, vol, setVol) => {
         const isA = deck === 'A';
-        const active = activeDeck === deck;
+        const bothPlaying = infoA.playing && infoB.playing;
+        const displayActive = bothPlaying ? (cfPercA >= cfPercB ? 'A' : 'B') : activeDeck;
+        const active = displayActive === deck;
         const accentBorder = active ? (isA ? 'border-blue-500' : 'border-violet-500') : 'border-gray-700';
         const badge = active ? (isA ? 'bg-blue-500 text-white' : 'bg-violet-500 text-white') : 'bg-gray-700 text-gray-400';
         const bar = active ? (isA ? 'bg-blue-500' : 'bg-violet-500') : 'bg-gray-600';
@@ -780,7 +779,12 @@
 
           <Visualizer
             playing={infoA.playing || infoB.playing}
-            title={activeDeck === 'A' ? infoA.title : infoB.title}
+            title={(() => {
+              if ((deckAVol >= 80 || deckBVol >= 80) && infoA.playing && infoB.playing) {
+                return deckAVol >= deckBVol ? infoA.title : infoB.title;
+              }
+              return activeDeck === 'A' ? infoA.title : infoB.title;
+            })()}
             activeDeck={activeDeck}
           />
 
